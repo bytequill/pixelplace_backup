@@ -19,9 +19,10 @@ import (
 var db *sql.DB
 var TOKEN string
 
-const CooldownTime time.Duration = 10 * time.Minute
+const CooldownTime time.Duration = 10*time.Minute - 5*time.Second
 
-var Cooldowns map[int]CooldownData = make(map[int]CooldownData)
+var Cooldowns map[int]*CooldownData = make(map[int]*CooldownData)
+var LastImgs map[int][]byte = make(map[int][]byte)
 
 type Place struct {
 	ID int `json:"id"`
@@ -61,11 +62,21 @@ func CheckForPlace(id int) bool {
 }
 
 func AppendLog(data []byte, placeID int, ip string) {
+	hd := md5.New()
+	hd.Write(data)
+
+	if string(hd.Sum(nil)) == string(LastImgs[placeID]) {
+		return
+	}
 	_, err := db.Exec("INSERT INTO log_data (image_data, place_id, req_ip) VALUES (?, ?, ?)", data, placeID, ip)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+
+	hd = md5.New()
+	hd.Write(data)
+	LastImgs[placeID] = hd.Sum(nil)
 }
 
 func SubmitCooldown(id int) {
@@ -73,8 +84,10 @@ func SubmitCooldown(id int) {
 	time.Sleep(time.Until(c.NextTime))
 
 	if len(c.Pending) > 0 {
-		log.Debug("Submitted a cooldown by", "ip", c.LastIP)
 		AppendLog(c.Pending, id, c.LastIP)
+		log.Debug("Submitted a cooldown", "ip", c.LastIP)
+	} else {
+		log.Debug("Cooldown empty")
 	}
 }
 
@@ -237,6 +250,9 @@ func handleSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 	data, err = base64.StdEncoding.DecodeString(string(data))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
 
 	if !CheckForPlace(id) {
 		InsertNewPlace(id)
@@ -252,9 +268,9 @@ func handleSubmit(w http.ResponseWriter, r *http.Request) {
 	c, ok := Cooldowns[id]
 	if !ok || time.Now().Unix() > c.NextTime.Unix() {
 		log.Debug("Created a new cooldown", "id", id)
-		Cooldowns[id] = CooldownData{NextTime: time.Now().Add(CooldownTime)}
+		Cooldowns[id] = &CooldownData{NextTime: time.Now().Add(CooldownTime), Pending: data, LastIP: ip}
 		go SubmitCooldown(id)
-		AppendLog(data, id, ip)
+		//AppendLog(data, id, ip)
 	} else {
 		log.Debug("Appended to cooldown", "tleft", time.Until(c.NextTime))
 		c.Pending = data

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backups</title>
+</head>
+<body>
+    Showing {{ len .LogData }} backups of pixelplace canvas
+    <ul style="display: flex;flex-wrap: wrap;justify-content: space-evenly;padding: 0;">
+    {{ range .LogData }}
+    <li>
+        <a href="/img/{{ .ID }}" target="_blank"><img src="/img/{{ .ID }}"></a>
+        <p>{{ formatTimestamp .Timestamp }};ID: {{ .ID }}</p>
+    </li>
+    {{ end }}
+   </ul> 
+</body>
+</html>

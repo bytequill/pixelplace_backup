@@ -10,7 +10,7 @@
 // ==/UserScript==
 const SURL = "https://pixelplace.codebased.xyz/submit";
 const STOKEN = "ILOVEKISSINGBOYS";
-const SINTERVAL = 300_000
+const SINTERVAL = 600_000
 var lastdata = "";
 
 function fetchData() {
@@ -24,7 +24,7 @@ function submitData() {
     let data = fetchData();
 
     if (lastdata == data) {
-        log.warn("duplicate found. not sending")
+        console.warn("duplicate found. not sending")
         return
     }
     lastdata = data

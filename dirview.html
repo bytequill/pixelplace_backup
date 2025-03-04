@@ -6,12 +6,19 @@
     <title>Backups</title>
 </head>
 <body>
-    Showing {{ len .LogData }} backups of pixelplace canvas
+    {{$glob := .LogData}}
+    {{$leng := len .LogData}}
+    Showing {{ $leng }} backups of pixelplace canvas
     <ul style="display: flex;flex-wrap: wrap;justify-content: space-evenly;padding: 0;">
-    {{ range .LogData }}
-    <li>
-        <a href="/img/{{ .ID }}" target="_blank"><img src="/img/{{ .ID }}"></a>
-        <p>{{ formatTimestamp .Timestamp }};ID: {{ .ID }}</p>
+    {{range $index, $log := .LogData }}
+    <li style="display: flex; flex-direction: column;">
+        <a href="/img/{{ $log.ID }}" target="_blank"><img src="/img/{{ $log.ID }}"></a>
+        {{ if ne $index (sub $leng 1) }}
+        <a href="/diff/{{ $log.ID }}/{{ (index $glob (add $index 1)).ID }}" target="_blank">Diff</a>
+        {{ else }}
+        <a style="pointer-events: none;">Diff</a>
+        {{ end }}
+        <p style="margin: 0;">{{ $log.Timestamp }};ID: {{ $log.ID }}</p>
     </li>
     {{ end }}
    </ul> 

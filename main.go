@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"database/sql"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -14,12 +15,13 @@ import (
 
 	"github.com/charmbracelet/log"
 	_ "github.com/mattn/go-sqlite3"
+	"gopkg.in/gographics/imagick.v3/imagick"
 )
 
 var db *sql.DB
 var TOKEN string
 
-const CooldownTime time.Duration = 10*time.Minute - 5*time.Second
+const CooldownTime time.Duration = 10*time.Minute - 20*time.Second
 
 var Cooldowns map[int]*CooldownData = make(map[int]*CooldownData)
 var LastImgs map[int][]byte = make(map[int][]byte)
@@ -59,6 +61,21 @@ func CheckForPlace(id int) bool {
 		return false
 	}
 	return result
+}
+
+func getFileByID(id string) ([]byte, error) {
+	row := db.QueryRow("SELECT image_data FROM log_data WHERE id = ? LIMIT 1", id)
+
+	var imageData []byte
+	err := row.Scan(&imageData)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, errors.New("not found")
+		}
+		return nil, err
+	}
+
+	return imageData, nil
 }
 
 func AppendLog(data []byte, placeID int, ip string) {
@@ -136,11 +153,15 @@ func main() {
 		return
 	}
 
+	imagick.Initialize()
+	defer imagick.Terminate()
+
 	http.HandleFunc("/submit/{id}", handleSubmit)
 	http.HandleFunc("/view/{id}", handleView)
 	http.HandleFunc("/img/{id}", handleFile)
+	http.HandleFunc("/diff/{id1}/{id2}", handleDiff)
 
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":9899", nil)
 }
 
 func getReqIP(r *http.Request) string {
@@ -193,36 +214,90 @@ func handleView(w http.ResponseWriter, r *http.Request) {
 		"formatTimestamp": func(t time.Time) string {
 			return t.Local().UTC().Format(time.RFC3339)
 		},
+		"add": func(i int, n int) int {
+			return i + n
+		},
+		"sub": func(i int, n int) int {
+			return i - n
+		},
 	}).ParseFiles("dirview.html"))
 
-	err = tmpl.Execute(w, struct {
+	tmpl.Execute(w, struct {
 		LogData []LogData
 	}{
 		LogData: logData,
 	})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 }
 
 func handleFile(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	row := db.QueryRow("SELECT image_data FROM log_data WHERE id = ? LIMIT 1", id)
 
-	var imageData []byte
-	err := row.Scan(&imageData)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			http.Error(w, "No image found", http.StatusNotFound)
-			return
-		}
+	imageData, err := getFileByID(id)
+	if err != nil && err.Error() == "not found" {
+		http.Error(w, err.Error(), http.StatusNotFound)
+	} else if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
 	}
 
 	w.Header().Set("Content-Type", "image/png")
 	w.Write(imageData)
+}
+
+func handleDiff(w http.ResponseWriter, r *http.Request) {
+	idOne := r.PathValue("id1")
+	idTwo := r.PathValue("id2")
+	if idOne == "" || idTwo == "" {
+		http.Error(w, "Id1 and Id2 not included", http.StatusBadRequest)
+		return
+	}
+
+	imgOne, err := getFileByID(idOne)
+	if err != nil {
+		if err.Error() == "not found" {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	imgTwo, err := getFileByID(idTwo)
+	if err != nil {
+		if err.Error() == "not found" {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	mw := imagick.NewMagickWand()
+	defer mw.Destroy()
+
+	if err := mw.ReadImageBlob(imgOne); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	mwTwo := imagick.NewMagickWand()
+	defer mwTwo.Destroy()
+
+	if err := mwTwo.ReadImageBlob(imgTwo); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	res, _ := mw.CompareImages(mwTwo, imagick.METRIC_ABSOLUTE_ERROR)
+	defer res.Destroy()
+
+	imgdata, err := res.GetImageBlob()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(imgdata)
 }
 
 func handleSubmit(w http.ResponseWriter, r *http.Request) {

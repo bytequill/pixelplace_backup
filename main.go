@@ -1,17 +1,22 @@
 package main
 
 import (
+	"bytes"
 	"crypto/md5"
 	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"html/template"
+	"image"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"image/draw"
+	_ "image/png"
 
 	"github.com/charmbracelet/log"
 	_ "github.com/mattn/go-sqlite3"
@@ -24,7 +29,6 @@ var TOKEN string
 const CooldownTime time.Duration = 10*time.Minute - 20*time.Second
 
 var Cooldowns map[int]*CooldownData = make(map[int]*CooldownData)
-var LastImgs map[int][]byte = make(map[int][]byte)
 
 type Place struct {
 	ID int `json:"id"`
@@ -78,22 +82,58 @@ func getFileByID(id string) ([]byte, error) {
 	return imageData, nil
 }
 
+func getLatestFile(id int) ([]byte, error) {
+	row := db.QueryRow("SELECT image_data FROM log_data WHERE place_id = ? ORDER BY id DESC LIMIT 1", id)
+
+	var imageData []byte
+	err := row.Scan(&imageData)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, errors.New("not found")
+		}
+		return nil, err
+	}
+
+	return imageData, nil
+}
+
 func AppendLog(data []byte, placeID int, ip string) {
 	hd := md5.New()
 	hd.Write(data)
 
-	if string(hd.Sum(nil)) == string(LastImgs[placeID]) {
+	imgnow, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
 		return
 	}
-	_, err := db.Exec("INSERT INTO log_data (image_data, place_id, req_ip) VALUES (?, ?, ?)", data, placeID, ip)
+	lastimgdata, err := getLatestFile(placeID)
+	if err != nil {
+		return
+	}
+	LastImg, _, err := image.Decode(bytes.NewReader(lastimgdata))
+	if err != nil {
+		return
+	}
+
+	rgbaOne := image.NewRGBA(imgnow.Bounds())
+	draw.Draw(rgbaOne, rgbaOne.Bounds(), imgnow, image.ZP, draw.Src)
+
+	rgbaTwo := image.NewRGBA(LastImg.Bounds())
+	draw.Draw(rgbaTwo, rgbaTwo.Bounds(), LastImg, image.ZP, draw.Src)
+
+	d, err := FastImgCompare(rgbaOne, rgbaTwo)
+
+	log.Debug("New image submited with", "diff", d)
+
+	if d < 25 && err == nil {
+		log.Warn("Diff too low", "d", d)
+		return
+	}
+
+	_, err = db.Exec("INSERT INTO log_data (image_data, place_id, req_ip) VALUES (?, ?, ?)", data, placeID, ip)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-
-	hd = md5.New()
-	hd.Write(data)
-	LastImgs[placeID] = hd.Sum(nil)
 }
 
 func SubmitCooldown(id int) {
@@ -106,6 +146,26 @@ func SubmitCooldown(id int) {
 	} else {
 		log.Debug("Cooldown empty")
 	}
+}
+
+func FastImgCompare(img1, img2 *image.RGBA) (float64, error) {
+	if img1.Bounds() != img2.Bounds() {
+		return 0, fmt.Errorf("image bounds not equal: %+v, %+v", img1.Bounds(), img2.Bounds())
+	}
+
+	mse := 0.0
+	totalPixels := len(img1.Pix) / 4
+
+	for i := 0; i < totalPixels; i++ {
+		r1, g1, b1, a1 := float64(img1.Pix[i*4]), float64(img1.Pix[i*4+1]), float64(img1.Pix[i*4+2]), float64(img1.Pix[i*4+3])
+		r2, g2, b2, a2 := float64(img2.Pix[i*4]), float64(img2.Pix[i*4+1]), float64(img2.Pix[i*4+2]), float64(img2.Pix[i*4+3])
+
+		mse += (r1-r2)*(r1-r2) + (g1-g2)*(g1-g2) + (b1-b2)*(b1-b2) + (a1-a2)*(a1-a2)
+	}
+
+	mse /= float64(totalPixels * 4)
+
+	return mse, nil
 }
 
 func main() {
@@ -318,6 +378,9 @@ func handleSubmit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if id == 7 {
+		http.Error(w, "Blacklisted place", http.StatusForbidden)
+	}
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -345,7 +408,7 @@ func handleSubmit(w http.ResponseWriter, r *http.Request) {
 		log.Debug("Created a new cooldown", "id", id)
 		Cooldowns[id] = &CooldownData{NextTime: time.Now().Add(CooldownTime), Pending: data, LastIP: ip}
 		go SubmitCooldown(id)
-		//AppendLog(data, id, ip)
+		AppendLog(data, id, ip)
 	} else {
 		log.Debug("Appended to cooldown", "tleft", time.Until(c.NextTime))
 		c.Pending = data

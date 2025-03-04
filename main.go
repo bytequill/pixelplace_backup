@@ -408,7 +408,9 @@ func handleSubmit(w http.ResponseWriter, r *http.Request) {
 		log.Debug("Created a new cooldown", "id", id)
 		Cooldowns[id] = &CooldownData{NextTime: time.Now().Add(CooldownTime), Pending: data, LastIP: ip}
 		go SubmitCooldown(id)
-		AppendLog(data, id, ip)
+		c.Pending = data
+		c.LastIP = ip
+		//AppendLog(data, id, ip)
 	} else {
 		log.Debug("Appended to cooldown", "tleft", time.Until(c.NextTime))
 		c.Pending = data

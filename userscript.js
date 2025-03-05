@@ -2,7 +2,7 @@
 // @name         Backup canvas
 // @namespace    http://tampermonkey.net/
 // @version      2025-03-03
-// @description  try to take over the world!
+// @description  A simple tampermonkey userscript for backing up visited pixelplace canvases into `SURL`
 // @author       github.com/bytequill
 // @match        https://pixelplace.io/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=pixelplace.io

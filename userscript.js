@@ -8,7 +8,7 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=pixelplace.io
 // @grant        none
 // ==/UserScript==
-const SURL = "https://pixelplace.codebased.xyz/submit";
+const SURL = "https://pixelplace.codebased.xyz/api/submit";
 const STOKEN = "ILOVEKISSINGBOYS";
 const SINTERVAL = 600_000
 var lastdata = "";

@@ -1,0 +1,43 @@
+<!-- Self is in /view/{int:ID} -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Backups</title>
+  <script type="module" src="/htmx.min.js"></script>
+</head>
+
+<style>
+    .item {
+        display: flex; flex-direction: column;
+    }
+    .disabled {
+        pointer-events: none;
+    }
+    p {
+        margin: 0;
+    }
+    img {
+        min-height: 200px;
+    }
+</style>
+
+<body>
+  <ul style="display: flex;flex-wrap: wrap;justify-content: space-evenly;padding: 0;">
+    <div id="targetDiv"
+        hx-trigger="load"
+        hx-swap="outerHTML">
+    Loading items...
+    </div>
+  </ul>
+
+  <script>
+    const pathParts = window.location.pathname.split('/').filter(Boolean);
+    const id = pathParts[1];
+    const endpoint = `/api/placeItems/${id}`;
+    const targetDiv = document.getElementById('targetDiv');
+    targetDiv.setAttribute('hx-get', endpoint);
+  </script>
+</body>
+</html>

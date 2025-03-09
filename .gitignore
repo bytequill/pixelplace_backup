@@ -1,3 +1,4 @@
 *.old
 .env
 *.db
+pixelplacer_backup

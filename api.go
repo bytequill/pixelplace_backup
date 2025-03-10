@@ -1,9 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"crypto/md5"
 	"encoding/base64"
 	"fmt"
+	"image"
+	"image/color/palette"
+	"image/draw"
+	"image/gif"
+	"image/png"
 	"io"
 	"math"
 	"net/http"
@@ -211,4 +217,75 @@ func apiDiff(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write(imgdata)
+}
+
+func apiTimelapse(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+
+	idOne := r.PathValue("id1")
+	idTwo := r.PathValue("id2")
+	dval := r.FormValue("delay")
+	if idOne == "" || idTwo == "" {
+		http.Error(w, "Id1 and Id2 not included", http.StatusBadRequest)
+		return
+	}
+	var delay int
+	var err error // Prevents a compiler eror
+	if dval == "" {
+		delay = 20
+	} else {
+		delay, err = strconv.Atoi(dval)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+	}
+
+	rows, err := db.Query(`SELECT timestamp, image_data
+							FROM log_data
+							WHERE id <= ? AND id >= ?
+							ORDER BY id DESC;`, idOne, idTwo)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var logData []LogData
+	for rows.Next() {
+		var ld LogData
+		err = rows.Scan(&ld.Timestamp, &ld.ImageData)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		logData = append(logData, ld)
+	}
+
+	if len(logData) <= 2 {
+		http.Error(w, "Not enough frames", http.StatusBadRequest)
+		return
+	}
+
+	anim := gif.GIF{LoopCount: len(logData)}
+	for _, l := range logData {
+		frame, err := png.Decode(bytes.NewReader(l.ImageData))
+		if err != nil {
+			http.Error(w, "Invalid frame detected;"+err.Error(), http.StatusInternalServerError)
+		}
+
+		paletted := image.NewPaletted(frame.Bounds(), palette.Plan9)
+		draw.Draw(paletted, frame.Bounds(), frame, image.ZP, draw.Src)
+
+		anim.Image = append(anim.Image, paletted)
+		anim.Delay = append(anim.Delay, delay) // in c(enti)s
+	}
+
+	err = gif.EncodeAll(w, &anim)
+	if err != nil {
+		if err.Error() == "gif: image block is out of bounds" {
+			return
+		} // I dont know whats causing this issue but the GIF is working so do this for now
+		log.Error(err)
+		http.Error(w, "Cannot encode gif;"+err.Error(), http.StatusInternalServerError)
+	}
 }

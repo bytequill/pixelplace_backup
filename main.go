@@ -221,6 +221,7 @@ func main() {
 	http.HandleFunc("/submit/{id}", apiSubmit) // Handle legacy submit route. Deprecated
 	http.HandleFunc("/api/img/{id}", apiFile)
 	http.HandleFunc("/api/diff/{id1}/{id2}", apiDiff)
+	http.HandleFunc("/api/timelapse/{id1}/{id2}", apiTimelapse)
 
 	//HTMX stuff
 	http.HandleFunc("/api/placeItems/{id}", apiPlaceItems)

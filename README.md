@@ -11,6 +11,7 @@ Not the best or the cleanest but it was made quickly. Might refactor?
 - [ ] Proper global RateLimit
 - [ ] Clean up logging and add HTML logging
 ## Features
-- [ ] Timelapse GIF generator route. From {id1} to {id2} like diff. Consider adding FPS config with `?x=` params
+- [x] Timelapse GIF generator route. From {id1} to {id2} like diff. Consider adding FPS config with `?x=` params
+    - fps can be set with the `?delay=` paremeter in 100th of a second (c(enti)s)
 - [x] Infinite scrolling dynamic loading to not send user all data at once
 - [ ] Homepage on `/` displaying a list of saved canvases and how many saves of each

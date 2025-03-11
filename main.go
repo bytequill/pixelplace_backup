@@ -63,7 +63,7 @@ var templatesFS embed.FS
 func InsertNewPlace(id int) {
 	_, err := db.Exec("INSERT INTO places (id) VALUES (?)", id)
 	if err != nil {
-		fmt.Println(err)
+		log.Error("Creating a new place", "err", err)
 		return
 	}
 }
@@ -116,14 +116,22 @@ func AppendLog(data []byte, placeID int, ip string) {
 
 	imgnow, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
+		log.Error("Decoding PNG data for submission. It might be corrupted or intentionally malformed", "err", err)
 		return
 	}
 	lastimgdata, err := getLatestFile(placeID)
 	if err != nil {
+		// Since we cannot perform it. Skipping the diff check
+		_, err = db.Exec("INSERT INTO log_data (image_data, place_id, req_ip) VALUES (?, ?, ?)", data, placeID, ip)
+		if err != nil {
+			log.Error("Creating a new log", "err", err)
+			return
+		}
 		return
 	}
 	LastImg, _, err := image.Decode(bytes.NewReader(lastimgdata))
 	if err != nil {
+		log.Error("Decoding latest place image. This might softlock a place_id!!", "err", err)
 		return
 	}
 
@@ -144,7 +152,7 @@ func AppendLog(data []byte, placeID int, ip string) {
 
 	_, err = db.Exec("INSERT INTO log_data (image_data, place_id, req_ip) VALUES (?, ?, ?)", data, placeID, ip)
 	if err != nil {
-		fmt.Println(err)
+		log.Error("Creating a new log", "err", err)
 		return
 	}
 }
@@ -224,11 +232,11 @@ func main() {
 	var err error
 	db, err = sql.Open("sqlite3", "./data.db")
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	err = db.Ping()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	// Create the tables
@@ -238,7 +246,7 @@ func main() {
         );
     `)
 	if err != nil {
-		fmt.Println(err)
+		log.Error("Error creating DB tables", "err", err)
 		return
 	}
 
@@ -253,7 +261,7 @@ func main() {
         );
     `)
 	if err != nil {
-		fmt.Println(err)
+		log.Error("Error creating DB tables", "err", err)
 		return
 	}
 

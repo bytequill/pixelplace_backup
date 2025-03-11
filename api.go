@@ -25,7 +25,7 @@ func apiPlaceItems(w http.ResponseWriter, r *http.Request) {
 
 	id := r.PathValue("id")
 	start := r.FormValue("start")
-	startd, err := strconv.Atoi(start) // Returns 0 on error which is what we want
+	startd, err := strconv.Atoi(start)
 	if err != nil {
 		startd = math.MaxInt64
 	}
@@ -291,8 +291,8 @@ func apiTimelapse(w http.ResponseWriter, r *http.Request) {
 
 	err = gif.EncodeAll(w, &anim)
 	if err != nil {
-		log.Error(err)
-		http.Error(w, "Cannot encode gif;"+err.Error(), http.StatusInternalServerError)
+		log.Errorf("Error encoding GIF;%s", err)
+		http.Error(w, "Cannot encode GIF;"+err.Error(), http.StatusInternalServerError)
 		return
 	}
 }

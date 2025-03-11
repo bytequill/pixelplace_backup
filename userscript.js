@@ -1,16 +1,16 @@
 // ==UserScript==
 // @name         Backup canvas
 // @namespace    http://tampermonkey.net/
-// @version      2025-03-03
+// @version      2025-03-11
 // @description  A simple tampermonkey userscript for backing up visited pixelplace canvases into `SURL`
 // @author       github.com/bytequill
 // @match        https://pixelplace.io/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=pixelplace.io
 // @grant        none
 // ==/UserScript==
-const SURL = "https://pixelplace.codebased.xyz/api/submit";
-const STOKEN = "ILOVEKISSINGBOYS";
-const SINTERVAL = 600_000
+const SURL = "https://pixelplace.codebased.xyz/api/submit"; // Set default to my hosted server for ease of sharing
+const STOKEN = "";
+const SINTERVAL = 600_000;
 var lastdata = "";
 
 function fetchData() {

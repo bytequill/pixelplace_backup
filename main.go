@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"crypto/md5"
 	"database/sql"
+	"embed"
 	"errors"
 	"fmt"
 	"image"
+	"math"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,8 +23,13 @@ import (
 	"gopkg.in/gographics/imagick.v3/imagick"
 )
 
+// Default values
+var TOKEN string = ""             // No header check!
+var BLACKLIST_ID []int = []int{7} // Space separated values in ENV_VAR
+var PORT int = 9899
+var DEBUG bool = false
+
 var db *sql.DB
-var TOKEN string
 
 const CooldownTime time.Duration = 10*time.Minute - 20*time.Second
 
@@ -42,6 +51,14 @@ type LogData struct {
 	ImageData []byte    `json:"image_data"`
 	PlaceID   int       `json:"place_id"`
 }
+
+// go embed stuff
+
+//go:embed static
+var staticFS embed.FS
+
+//go:embed templates
+var templatesFS embed.FS
 
 func InsertNewPlace(id int) {
 	_, err := db.Exec("INSERT INTO places (id) VALUES (?)", id)
@@ -165,11 +182,42 @@ func FastImgCompare(img1, img2 *image.RGBA) (float64, error) {
 }
 
 func main() {
-	log.SetLevel(log.DebugLevel)
-	TOKEN = "ILOVEKISSINGBOYS"
-	//TOKEN = os.Getenv("TOKEN")
-	if len(TOKEN) == 0 {
-		panic("Please enter a valid token")
+	if os.Getenv("TOKEN") != "" {
+		TOKEN = os.Getenv("TOKEN")
+	} else {
+		log.Warn("Running without submit authorization!")
+	}
+	if strings.ToLower(os.Getenv("DEBUG")) == "true" {
+		DEBUG = true
+		log.SetLevel(log.DebugLevel)
+		log.SetReportCaller(true)
+
+		log.Debug("Running in verbose mode. DEBU(G) messages enabled")
+	}
+	portenv := os.Getenv("PORT")
+	if portenv != "" {
+		portv, err := strconv.Atoi(portenv)
+		if err == nil && portv <= math.MaxUint16 {
+			PORT = portv
+		} else {
+			log.Warn("Invalid port value", "v", portenv)
+		}
+	}
+	blacklistenv := os.Getenv("BLACKLIST_ID")
+	if blacklistenv != "" {
+		parts := strings.Fields(blacklistenv)
+		BLACKLIST_ID = make([]int, 0)
+		for i, p := range parts {
+			id, err := strconv.Atoi(p)
+			if err != nil {
+				log.Warn("Invalid ID in BLACKLIST_ID", "pos", i, "v", p)
+				continue
+			}
+			BLACKLIST_ID = append(BLACKLIST_ID, id)
+		}
+		if len(BLACKLIST_ID) == 0 {
+			log.Warn("No blacklist IDs selected. Please make sure this is expected")
+		}
 	}
 
 	// Connect to the SQLite database
@@ -213,8 +261,10 @@ func main() {
 	defer imagick.Terminate()
 
 	//Frontend
-	http.HandleFunc("/view/{id}", func(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, "./templates/view.html") })
-	http.Handle("/", http.FileServer(http.Dir("./static")))
+	http.HandleFunc("/view/{id}", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFileFS(w, r, templatesFS, "templates/view.html")
+	})
+	http.Handle("/", http.FileServer(http.FS(staticFS)))
 
 	//API
 	http.HandleFunc("/api/submit/{id}", apiSubmit)

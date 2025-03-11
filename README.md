@@ -3,8 +3,8 @@ Not the best or the cleanest but it was made quickly. Might refactor?
 
 # Things to do before I can consider this "release worthy" (will get a tag when ready)
 ## Cleanup
-- [ ] Make things configurable and NOT hardcoded
-- [ ] Include all html files into the executable
+- [x] Make things configurable and NOT hardcoded
+- [x] Include all html files into the executable
 - [ ] Create a descriptive README
 - [x] Maybe move backend routes to `/api`
 - [ ] Docker compose support for easy hosting (incl ENV_VAR config)

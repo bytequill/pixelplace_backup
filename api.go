@@ -91,7 +91,7 @@ func apiSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Header.Get("Authorization") != TOKEN {
+	if TOKEN != "" && r.Header.Get("Authorization") != TOKEN {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -144,11 +144,6 @@ func apiSubmit(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Printf("Got new submission for %d @ %s by %s\n",
 		id, time.Now().UTC().Format(time.RFC3339), ip)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
 }
 
 func apiFile(w http.ResponseWriter, r *http.Request) {

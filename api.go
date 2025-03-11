@@ -251,7 +251,7 @@ func apiTimelapse(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(`SELECT timestamp, image_data
 							FROM log_data
 							WHERE id <= ? AND id >= ? AND place_id = ?
-							ORDER BY id DESC;`, idOne, idTwo, placeID)
+							ORDER BY id ASC;`, idOne, idTwo, placeID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

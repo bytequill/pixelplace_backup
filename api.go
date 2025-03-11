@@ -102,6 +102,7 @@ func apiSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if id == 7 {
 		http.Error(w, "Blacklisted place", http.StatusForbidden)
+		return
 	}
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -112,6 +113,7 @@ func apiSubmit(w http.ResponseWriter, r *http.Request) {
 	data, err = base64.StdEncoding.DecodeString(string(data))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	if !CheckForPlace(id) {
@@ -122,6 +124,7 @@ func apiSubmit(w http.ResponseWriter, r *http.Request) {
 	_, err = hip.Write([]byte(getReqIP(r)))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	ip := base64.RawStdEncoding.EncodeToString(hip.Sum(nil))
 
@@ -154,8 +157,10 @@ func apiFile(w http.ResponseWriter, r *http.Request) {
 	imageData, err := getFileByID(id)
 	if err != nil && err.Error() == "not found" {
 		http.Error(w, err.Error(), http.StatusNotFound)
+		return
 	} else if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "image/png")
@@ -237,13 +242,21 @@ func apiTimelapse(w http.ResponseWriter, r *http.Request) {
 		delay, err = strconv.Atoi(dval)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
+	}
+
+	var placeID int
+	err = db.QueryRow(`SELECT place_id FROM log_data WHERE id = ?`, idOne).Scan(&placeID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	rows, err := db.Query(`SELECT timestamp, image_data
 							FROM log_data
-							WHERE id <= ? AND id >= ?
-							ORDER BY id DESC;`, idOne, idTwo)
+							WHERE id <= ? AND id >= ? AND place_id = ?
+							ORDER BY id DESC;`, idOne, idTwo, placeID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -271,6 +284,7 @@ func apiTimelapse(w http.ResponseWriter, r *http.Request) {
 		frame, err := png.Decode(bytes.NewReader(l.ImageData))
 		if err != nil {
 			http.Error(w, "Invalid frame detected;"+err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		paletted := image.NewPaletted(frame.Bounds(), palette.Plan9)
@@ -282,10 +296,8 @@ func apiTimelapse(w http.ResponseWriter, r *http.Request) {
 
 	err = gif.EncodeAll(w, &anim)
 	if err != nil {
-		if err.Error() == "gif: image block is out of bounds" {
-			return
-		} // I dont know whats causing this issue but the GIF is working so do this for now
 		log.Error(err)
 		http.Error(w, "Cannot encode gif;"+err.Error(), http.StatusInternalServerError)
+		return
 	}
 }

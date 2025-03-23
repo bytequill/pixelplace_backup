@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    environment:
+      # Token needed to submit new backups. If left blank ANY header is let through
+      TOKEN: ""
+      DEBUG: "false"
+      # Space separated list of place IDs
+      BLACKLISTID: "7 8"
+      PORT: "9899"
+    ports:
+      - "9899:9899"

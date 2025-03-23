@@ -7,7 +7,8 @@ Not the best or the cleanest but it was made quickly. Might refactor?
 - [x] Include all html files into the executable
 - [ ] Create a descriptive README
 - [x] Maybe move backend routes to `/api`
-- [ ] Docker compose support for easy hosting (incl ENV_VAR config)
+- [x] Docker compose support for easy hosting (incl ENV_VAR config)
+    - Kept crashing with ImageMagick so implemented my own /diff
 - [ ] Proper global RateLimit
 - [ ] Clean up logging and add HTML logging
 ## Features

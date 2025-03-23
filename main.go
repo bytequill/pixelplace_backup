@@ -20,7 +20,6 @@ import (
 
 	"github.com/charmbracelet/log"
 	_ "github.com/mattn/go-sqlite3"
-	"gopkg.in/gographics/imagick.v3/imagick"
 )
 
 // Default values
@@ -265,9 +264,6 @@ func main() {
 		return
 	}
 
-	imagick.Initialize()
-	defer imagick.Terminate()
-
 	//Frontend
 	http.HandleFunc("/view/{id}", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFileFS(w, r, templatesFS, "templates/view.html")
@@ -284,7 +280,7 @@ func main() {
 	//HTMX stuff
 	http.HandleFunc("/api/placeItems/{id}", apiPlaceItems)
 
-	http.ListenAndServe(":9899", nil)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", PORT), nil))
 }
 
 func getReqIP(r *http.Request) string {

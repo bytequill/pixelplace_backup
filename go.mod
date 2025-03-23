@@ -5,7 +5,6 @@ go 1.24.0
 require (
 	github.com/charmbracelet/log v0.4.0
 	github.com/mattn/go-sqlite3 v1.14.24
-	gopkg.in/gographics/imagick.v3 v3.7.2
 )
 
 require (

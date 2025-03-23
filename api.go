@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"image"
+	"image/color"
 	"image/color/palette"
 	"image/draw"
 	"image/gif"
@@ -17,7 +18,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"gopkg.in/gographics/imagick.v3/imagick"
 )
 
 func apiPlaceItems(w http.ResponseWriter, r *http.Request) {
@@ -170,7 +170,7 @@ func apiDiff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	imgOne, err := getFileByID(idOne)
+	imgdataOne, err := getFileByID(idOne)
 	if err != nil {
 		if err.Error() == "not found" {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -180,7 +180,7 @@ func apiDiff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	imgTwo, err := getFileByID(idTwo)
+	imgdataTwo, err := getFileByID(idTwo)
 	if err != nil {
 		if err.Error() == "not found" {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -190,33 +190,43 @@ func apiDiff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mw := imagick.NewMagickWand()
-	defer mw.Destroy()
-
-	if err := mw.ReadImageBlob(imgOne); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	mwTwo := imagick.NewMagickWand()
-	defer mwTwo.Destroy()
-
-	if err := mwTwo.ReadImageBlob(imgTwo); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	res, _ := mw.CompareImages(mwTwo, imagick.METRIC_ABSOLUTE_ERROR)
-	defer res.Destroy()
-
-	imgdata, err := res.GetImageBlob()
+	imgOne, _, err := image.Decode(bytes.NewReader(imgdataOne))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	imgTwo, _, err := image.Decode(bytes.NewReader(imgdataTwo))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if imgOne.Bounds().String() != imgTwo.Bounds().String() {
+		http.Error(w, "Mismatch in selected image size", http.StatusUnprocessableEntity)
+	}
+	resultImg := image.NewRGBA(imgOne.Bounds())
+
+	rgbaOne := image.NewRGBA(imgOne.Bounds())
+	draw.Draw(rgbaOne, rgbaOne.Bounds(), imgOne, image.ZP, draw.Src)
+
+	rgbaTwo := image.NewRGBA(imgTwo.Bounds())
+	draw.Draw(rgbaTwo, rgbaTwo.Bounds(), imgTwo, image.ZP, draw.Src)
+
+	// Draws different pixels as red and non-differing pixels as desaturated originals
+	for dx := range resultImg.Bounds().Dx() {
+		for dy := range resultImg.Bounds().Dy() {
+			pixOne := color.GrayModel.Convert(rgbaOne.At(dx, dy)).(color.Gray)
+			pixTwo := color.GrayModel.Convert(rgbaTwo.At(dx, dy)).(color.Gray)
+			if pixOne.Y != pixTwo.Y {
+				resultImg.Set(dx, dy, color.RGBA{255, 0, 0, 255})
+			} else {
+				r, g, b, _ := rgbaOne.At(dx, dy).RGBA()
+				resultImg.Set(dx, dy, color.RGBA{uint8(r), uint8(g), uint8(b), 255 * 0.4})
+			}
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(imgdata)
+	png.Encode(w, resultImg)
 }
 
 func apiTimelapse(w http.ResponseWriter, r *http.Request) {

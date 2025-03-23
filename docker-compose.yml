@@ -12,3 +12,5 @@ services:
       PORT: "9899"
     ports:
       - "9899:9899"
+    volumes:
+      - ./data:/usr/src/app/data

@@ -12,5 +12,6 @@ COPY . .
 ENV CGO_ENABLED=1
 RUN go build -v -o /usr/local/bin/app ./...
 
-
+ENV IS_CONTAINER=1
+RUN mkdir -p /usr/src/app/data
 CMD ["app"]

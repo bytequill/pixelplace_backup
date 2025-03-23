@@ -228,8 +228,12 @@ func main() {
 	}
 
 	// Connect to the SQLite database
+	dbPath := "./data.db"
+	if os.Getenv("IS_CONTAINER") == "1" {
+		dbPath = "/usr/src/app/data/data.db"
+	}
 	var err error
-	db, err = sql.Open("sqlite3", "./data.db")
+	db, err = sql.Open("sqlite3", dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
